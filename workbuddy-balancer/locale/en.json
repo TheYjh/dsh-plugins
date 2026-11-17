@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "WorkBuddy Credit Balancer",
+    "description": "Uses accounts with expiring credits and small balances first, so credits stop lapsing. Only writes the ordering field upstream already reads, so upgrades never drop it.",
+    "detail": "README.md"
+  }
+}

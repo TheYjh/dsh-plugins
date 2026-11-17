@@ -1,0 +1,13 @@
+# dsh-workbuddy-balancer —— DSH bundle patch
+#
+# 这一层只插入一个 Host 侧插件（无 UI 半侧）：它在后台按「积分临期优先、
+# 积分少优先」重排 dsh-connect-workbuddy 账号池的使用顺序。
+#
+# 它**不**修改上游 bundle，只写上游本来就会读的配置字段
+# `regions.<region>.pool.orderAccountIds`（volatile，就地生效）。
+#
+# 行名必须等于包名：client-modules / loader 侧都靠行名去找包。
+
+- insert:
+    - id: dsh-workbuddy-balancer
+      name: dsh-workbuddy-balancer

@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "WorkBuddy 积分均衡",
+    "description": "让临期积分和小额余额的账号优先被使用，避免积分静静过期；只写上游本来就读的顺序字段，升级不丢。",
+    "detail": "README.md"
+  }
+}

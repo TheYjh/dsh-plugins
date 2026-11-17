@@ -6,9 +6,12 @@
 
 ## 目录
 
-| 插件 | 作用 | 一句话 |
+<!-- plugins-table:begin -->
+| 插件 | 包名 | 一句话 |
 |---|---|---|
-| [dsh-profile-doctor](profile-doctor/) | 修掉让插件市场**每次更新都被回滚**的孤儿 bundle 声明 | 装了它，更新才装得上 |
+| [`profile-doctor`](./profile-doctor/) | `dsh-profile-doctor` | 自动体检并修复 DSH profile 的 bundle 声明：删掉「声明了但没安装」的残留条目，让插件市场的更新不再被试启动校验回滚 |
+| [`workbuddy-balancer`](./workbuddy-balancer/) | `dsh-workbuddy-balancer` | 给 dsh-connect-workbuddy 的账号池加上「积分临期优先、积分少优先」：读上游实时余额，算加权顺序，写进上游的 pool.orderAccountIds，不碰上游代码，升级不会丢 |
+<!-- plugins-table:end -->
 
 ---
 

@@ -1,0 +1,36 @@
+{
+  "name": "dsh-workbuddy-balancer",
+  "version": "0.1.0",
+  "description": "给 dsh-connect-workbuddy 的账号池加上「积分临期优先、积分少优先」：读上游实时余额，算加权顺序，写进上游的 pool.orderAccountIds，不碰上游代码，升级不会丢",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "workbuddy",
+    "account-pool",
+    "credits",
+    "balancer"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "locale/*.json",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}

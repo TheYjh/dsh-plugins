@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Profile Doctor",
+    "description": "Removes orphan bundle declarations from the profile so plugin-market updates stop being rolled back.",
+    "detail": "README.md"
+  }
+}

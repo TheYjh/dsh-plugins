@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Profile 医生",
+    "description": "自动删掉 profile 里「声明了但没安装」的残留 bundle，让插件市场的更新不再被回滚。",
+    "detail": "README.md"
+  }
+}

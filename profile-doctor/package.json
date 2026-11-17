@@ -1,0 +1,36 @@
+{
+  "name": "dsh-profile-doctor",
+  "version": "0.1.0",
+  "description": "自动体检并修复 DSH profile 的 bundle 声明：删掉「声明了但没安装」的残留条目，让插件市场的更新不再被试启动校验回滚",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "profile",
+    "bundle",
+    "doctor",
+    "repair"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "locale/*.json",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}

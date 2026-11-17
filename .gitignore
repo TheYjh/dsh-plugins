@@ -1,0 +1,4 @@
+node_modules/
+.profile-doctor/
+*.log
+.DS_Store

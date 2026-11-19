@@ -5,11 +5,11 @@
  * 「这个回合已经被拦过几次」，并在回合收尾时给一个决定。
  *
  * 它**不做**的事：不读会话日志（`Session.eventAt` / `snapshotEvents` 已废弃）、
- * 不判断文本内容的真假、不碰 steer 的调用方式——那些留在 `index.js` 里，
- * 由宿主上下文完成。这样状态机可以只喂合成事件来测。
+ * 不判断文本内容的真假、不留痕、不碰 steer 的调用方式——那些留在 `wire.js`
+ * 与 `index.js` 里，由宿主上下文完成。这样状态机可以只喂合成事件来测。
  */
 
-import { buildNudge, describeSlotKeys, extractAssistantText, hasCompleteSlots, parseSlots } from './slots.js';
+import { buildNudge, extractAssistantText, hasCompleteSlots, parseSlots } from './slots.js';
 
 /**
  * 默认被视为「改动了东西」的工具。
@@ -32,13 +32,14 @@ export const DEFAULT_WRITE_TOOLS = Object.freeze(['write', 'edit', 'apply_patch'
  * @typedef {object} Decision
  * @property {'allow' | 'steer'} action 放行还是拦回
  * @property {string} [text] 拦回时要注入的提醒
- * @property {string[]} [gapKeys] 拦回时缺失/为空的栏位 key
+ * @property {string[]} [gapKeys] 缺失/为空的栏位 key（拦回与超限放行都带）
+ * @property {number} [strikes] 超限放行时已经拦过的次数
  * @property {string} [reason] 放行原因，用于测试与留痕
  */
 
 export class TurnGate {
   /**
-   * @param {{ writeTools?: string[], maxRetries?: number, record?: (line: string) => void }} [options]
+   * @param {{ writeTools?: string[], maxRetries?: number }} [options]
    */
   constructor(options = {}) {
     const writeTools = Array.isArray(options.writeTools) && options.writeTools.length > 0
@@ -46,7 +47,6 @@ export class TurnGate {
       : DEFAULT_WRITE_TOOLS;
     this.writeTools = new Set(writeTools);
     this.maxRetries = Number.isInteger(options.maxRetries) && options.maxRetries >= 0 ? options.maxRetries : 1;
-    this.record = typeof options.record === 'function' ? options.record : () => {};
     /** @type {Map<string, TurnState>} sessionId → 该会话当前回合的状态 */
     this.bySession = new Map();
   }
@@ -106,8 +106,8 @@ export class TurnGate {
    * 回合收尾时给出决定。
    *
    * 顺序有意如此：先看有没有改动（没改动就不管），再看槽位全不全（全就放行），
-   * 最后看还剩不剩重试额度。额度耗尽时放行并留痕——闸门永远不允许把回合
-   * 卡死在这里。
+   * 最后看还剩不剩重试额度。额度耗尽时放行——闸门永远不允许把回合卡死在这里，
+   * 而留痕由调用方根据 `reason === 'exhausted'` 与带回的字段去做。
    *
    * @param {string} sessionId 会话 id
    * @param {number} turn 回合号
@@ -128,20 +128,17 @@ export class TurnGate {
     }
 
     const gaps = parseSlots(state.lastText);
+    const gapKeys = [...gaps.missing, ...gaps.empty];
 
     if (state.strikes >= this.maxRetries) {
-      const missing = [...gaps.missing, ...gaps.empty];
-      this.record(
-        `回合 ${turn} 已拦过 ${state.strikes} 次仍缺槽位（${describeSlotKeys(missing) || '三栏'}），放行。`,
-      );
-      return { action: 'allow', reason: 'exhausted' };
+      return { action: 'allow', reason: 'exhausted', gapKeys, strikes: state.strikes };
     }
 
     state.strikes += 1;
     return {
       action: 'steer',
       text: buildNudge(gaps),
-      gapKeys: [...gaps.missing, ...gaps.empty],
+      gapKeys,
       reason: 'gaps',
     };
   }

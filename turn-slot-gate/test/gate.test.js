@@ -2,8 +2,8 @@
  * 闸门状态机的合成测试 —— 只喂会话事件、只断言对外决定（放行 / 拦回），
  * 不断言内部计数字段。
  *
- * 三个必测分支（规格 #32 / 票 #33 的验收）：缺槽位要拦、齐全要放行、
- * 拦过一次还不合规要放行（防死循环）。
+ * 必测分支（票 #33 / #34 的验收）：缺槽位要拦、齐全要放行、拦过一次还不合规
+ * 要放行（防死循环）、只读回合不拦、超限放行带回回合号与缺失栏名。
  */
 
 import assert from 'node:assert/strict';
@@ -35,12 +35,12 @@ const COMPLIANT = [
   '第 10 行的 ValueErrror 拼写错误，判断为不影响运行说明，未改。',
 ].join('\n');
 
-/** 跑一轮完整回合：开始 → 写调用 → 交付文本 → 收尾判定。 */
-function runTurn(gate, { turn = 1, tools = ['write'], text = '' } = {}) {
-  gate.observe(SESSION, { type: 'turn/start', data: { turn } });
-  for (const name of tools) gate.observe(SESSION, toolCall(turn, name));
-  if (text.length > 0) gate.observe(SESSION, assistant(turn, text));
-  return gate.decide(SESSION, turn);
+/** 跑一轮完整回合：开始 → 工具调用 → 交付文本 → 收尾判定。 */
+function runTurn(gate, { turn = 1, tools = ['write'], text = '', session = SESSION } = {}) {
+  gate.observe(session, { type: 'turn/start', data: { turn } });
+  for (const name of tools) gate.observe(session, toolCall(turn, name));
+  if (text.length > 0) gate.observe(session, assistant(turn, text));
+  return gate.decide(session, turn);
 }
 
 test('默认写类工具不含 bash', () => {
@@ -64,11 +64,9 @@ test('有写类调用 + 三栏齐全 → 放行', () => {
   assert.equal(decision.reason, 'compliant');
 });
 
-test('重试一次仍不合规 → 放行，不再拦（防死循环）', () => {
-  const records = [];
-  const gate = new TurnGate({ maxRetries: 1, record: (line) => records.push(line) });
+test('重试一次仍不合规 → 放行，不再拦，并带回回合号与缺失栏名', () => {
+  const gate = new TurnGate({ maxRetries: 1 });
 
-  // 第一次：拦回
   const first = runTurn(gate, { text: '改好了。' });
   assert.equal(first.action, 'steer');
 
@@ -77,22 +75,29 @@ test('重试一次仍不合规 → 放行，不再拦（防死循环）', () => 
   const second = gate.decide(SESSION, 1);
   assert.equal(second.action, 'allow');
   assert.equal(second.reason, 'exhausted');
-  assert.equal(records.length, 1);
-  assert.match(records[0], /放行/);
+  assert.deepEqual(second.gapKeys, ['changed', 'seenUnchanged', 'judgedFine']);
+  assert.equal(second.strikes, 1);
 });
 
-test('maxRetries=0 → 一次都不拦，直接放行并留痕', () => {
-  const records = [];
-  const gate = new TurnGate({ maxRetries: 0, record: (line) => records.push(line) });
+test('maxRetries=0 → 一次都不拦，直接放行并带回栏名', () => {
+  const gate = new TurnGate({ maxRetries: 0 });
   const decision = runTurn(gate, { text: '改好了。' });
   assert.equal(decision.action, 'allow');
   assert.equal(decision.reason, 'exhausted');
-  assert.equal(records.length, 1);
+  assert.equal(decision.strikes, 0);
+  assert.equal(decision.gapKeys.length, 3);
 });
 
-test('没有写类调用 → 放行，不看文本', () => {
+test('只读工具（read/grep/glob）→ 放行，不看文本', () => {
   const gate = new TurnGate();
-  const decision = runTurn(gate, { tools: ['read', 'bash'], text: '我只看了看，没改。' });
+  const decision = runTurn(gate, { tools: ['read', 'grep', 'glob'], text: '我只看了看，没改。' });
+  assert.equal(decision.action, 'allow');
+  assert.equal(decision.reason, 'no-write');
+});
+
+test('只跑 bash（哪怕它写了文件）→ 放行：bash 不计入写类判定', () => {
+  const gate = new TurnGate();
+  const decision = runTurn(gate, { tools: ['bash'], text: '跑了几个命令。' });
   assert.equal(decision.action, 'allow');
   assert.equal(decision.reason, 'no-write');
 });

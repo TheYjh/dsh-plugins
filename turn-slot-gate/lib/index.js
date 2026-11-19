@@ -76,6 +76,34 @@ function report(message) {
   }
 }
 
+/** 写未合规记录的 plugin record 类型名（会话日志里的稳定标识）。 */
+export const RECORD_TYPE = 'plugin:turn-slot-gate/non-compliant';
+
+/**
+ * 懒加载 `@deepseek-ai/dsh-session` 的 `appendPluginRecord`。
+ *
+ * 和 `dsh-llm` 一样，这个包在 DSH 运行时之外解析不到（宿主有运行时解析层把
+ * 安装目录的包供给 profile 插件），所以必须动态 import 并允许失败降级。
+ *
+ * @param {(() => Promise<any>) | undefined} load 自定义加载器（测试用；省略时走真实 import）
+ * @returns {() => Promise<((session: any, type: string, data: any) => unknown) | null>} 取追加函数的异步函数
+ */
+function createPluginRecordWriter(load) {
+  const loader = typeof load === 'function' ? load : () => import('@deepseek-ai/dsh-session');
+  let resolved;
+  let pending = null;
+
+  return async () => {
+    if (resolved !== undefined) return resolved;
+    pending ??= Promise.resolve()
+      .then(loader)
+      .then((mod) => (typeof mod?.appendPluginRecord === 'function' ? mod.appendPluginRecord : null))
+      .catch(() => null);
+    resolved = await pending;
+    return resolved;
+  };
+}
+
 /**
  * 懒加载宿主消息工厂。第一次调用时发起 import 并缓存 promise，后续复用；
  * 失败则退回裸消息对象（不阻断提醒，只是可能缺少稳定 id）。
@@ -119,20 +147,61 @@ function createMessageFactory() {
  * @param {unknown} rawConfig 配置
  * @returns {() => void} 卸载钩子
  */
-export function apply(ctx, rawConfig) {
-  const config = normalizeConfig(rawConfig);
-  if (!config.enabled) return () => {};
+/**
+ * 造一个 `apply` 函数，宿主能力（目前只有会话日志的追加函数）可注入。
+ *
+ * 真实入口 `apply` 就是 `createApply()` 的结果；测试用
+ * `createApply({ loadAppendPluginRecord })` 换成真实的 `dsh-session`，
+ * 好在没有 DSH 运行时的情况下也能验证「记录真的落进会话日志」。
+ *
+ * @param {{ loadAppendPluginRecord?: () => Promise<any> }} [deps] 可注入的宿主能力
+ * @returns {(ctx: any, rawConfig: unknown) => () => void} cordis 插件入口
+ */
+export function createApply(deps = {}) {
+  return function applyWithDeps(ctx, rawConfig) {
+    const config = normalizeConfig(rawConfig);
+    if (!config.enabled) return () => {};
 
-  const getFactory = createMessageFactory();
+    const getFactory = createMessageFactory();
+    const getAppender = createPluginRecordWriter(deps.loadAppendPluginRecord);
 
-  return wire(ctx, {
-    enabled: config.enabled,
-    writeTools: config.writeTools,
-    maxRetries: config.maxRetries,
-    record: report,
-    async steer(agent, text) {
-      const make = await getFactory();
-      agent.steer(make(text));
-    },
-  });
+    return wire(ctx, {
+      enabled: config.enabled,
+      writeTools: config.writeTools,
+      maxRetries: config.maxRetries,
+      async record(note) {
+        // 一行 stderr 兜底：会话日志写不进去时至少还留得下痕迹。
+        report(note.message);
+
+        if (note.kind !== 'exhausted') return;
+        const append = await getAppender();
+        const session = note.session;
+        if (append === null || !session) return;
+
+        try {
+          append(session, RECORD_TYPE, {
+            turn: note.turn,
+            missing: note.missing ?? [],
+            strikes: note.strikes ?? 0,
+          });
+        } catch (error) {
+          report(
+            `未合规记录写入会话日志失败（${error instanceof Error ? error.message : String(error)}），` +
+              '仅保留 stderr 留痕。',
+          );
+        }
+      },
+      async steer(agent, text) {
+        const make = await getFactory();
+        agent.steer(make(text));
+      },
+    });
+  };
 }
+
+/**
+ * @param {import('@deepseek-ai/cordis').Context} ctx 插件上下文
+ * @param {unknown} rawConfig 配置
+ * @returns {() => void} 卸载钩子
+ */
+export const apply = createApply();

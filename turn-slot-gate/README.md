@@ -34,10 +34,12 @@ dsh plugin install /path/to/turn-slot-gate
 - id: dsh-turn-slot-gate
   name: dsh-turn-slot-gate
   config:
-    enabled: true        # 总开关；false 时完全不读会话、不判工具
+    enabled: true        # 总开关；false 时完全不注册监听器，不读会话、不判工具
     maxRetries: 1        # 单回合最多拦几次。0 = 不拦，只留痕
     writeTools: []       # 覆盖默认写类工具名单；留空用 write/edit/apply_patch
 ```
+
+`enabled: false` 不是「注册了监听器但提前 return」——`wire()` 在开头就返回空清理函数，一个 `on()` 都不调。所以关掉之后它对会话完全不可见，这一点有测试直接断言 `ctx.handlers.size === 0`。
 
 ### 为什么不拦 `bash`
 
@@ -47,7 +49,9 @@ dsh plugin install /path/to/turn-slot-gate
 
 - **只验结构，不验内容真假。** 模型可以在第二栏编造「读过但没改」的对象，插件拦不住，也不假装能。真正的保证来自规则文件对第三栏的要求。
 - **拦不住「不用写类工具就交付」的回合。** 纯解释、纯查询不该被管，这是有意的。
-- **最多拦 `maxRetries` 次。** 上限内没补齐就放行并往 stderr 写一行未合规记录。闸门永远不允许把回合卡死。
+- **最多拦 `maxRetries` 次。** 上限内没补齐就放行。闸门永远不允许把回合卡死。
+- **超限放行会留痕。** 正常情况下写一条会话日志记录（`plugin:turn-slot-gate/non-compliant`，带 `turn`、`missing`、`strikes`），同时往 stderr 写一行。会话日志写不进去时（例如拿不到 `@deepseek-ai/dsh-session`）静默降级为只有 stderr——不假装写了。
+- **只拦住有 `write`/`edit`/`apply_patch` 的回合。** 只跑 `bash` 的回合不算，哪怕那条命令其实写了文件。
 - **需要新会话或重启后才生效。** 插件本身在启动时装配。
 
 ## 测试
@@ -56,13 +60,19 @@ dsh plugin install /path/to/turn-slot-gate
 npm test        # 或 node --test
 ```
 
-39 条用例，只断言对外可观察行为（steer 有没有被调用、调用内容说了什么），不断言内部计数字段。
+52 条用例，只断言对外可观察行为（`steer` 有没有被调用、调用内容说了什么、会话日志里出现了什么记录），不断言内部计数字段。
 
-三个必测分支：
+必测分支：
 
 - 有写类调用 + 交付缺槽位 → `steer` 调用一次，提醒指明缺哪一栏
 - 有写类调用 + 三栏齐全 → `steer` 不调用
 - 拦过一次仍不合规 → 放行，`steer` 不再调用（防死循环）
+- 只读回合（`read`/`grep`/`glob`）、只跑 `bash` 的回合 → 不 `steer`
+- `enabled: false` → 一个监听器都不注册
+- 超限放行 → 记录含回合号与缺失栏名
+- 子代理回合与主代理行为一致（独立会话、同样被拦、同样留痕）
+
+`test/index.test.js` 用注入的假加载器验证「记录真的落进会话日志」，所以不需要 DSH 运行时也能测这一环。
 
 ## 结构
 
@@ -73,4 +83,6 @@ lib/wire.js   宿主接线层，宿主能力全部参数注入
 lib/index.js  cordis 入口，只有这里碰宿主包
 ```
 
-宿主包 `@deepseek-ai/dsh-llm` 只在第一次需要注入时动态 import 并缓存，所以前三个模块能直接 `node --test`，不需要 DSH 运行时。
+宿主包（`@deepseek-ai/dsh-llm` 取消息工厂、`@deepseek-ai/dsh-session` 写会话日志）都只在第一次需要时动态 import 并缓存，失败就降级，所以前三个模块能直接 `node --test`，不需要 DSH 运行时。
+
+`lib/index.js` 的入口是 `createApply(deps)` 的结果：`deps` 里可以换掉会话日志的加载器，让 `test/index.test.js` 用假加载器验证写记录这一环。

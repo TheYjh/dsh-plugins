@@ -53,6 +53,21 @@ dsh plugin install /path/to/turn-slot-gate
 - **超限放行会留痕。** 正常情况下写一条会话日志记录（`plugin:turn-slot-gate/non-compliant`，带 `turn`、`missing`、`strikes`），同时往 stderr 写一行。会话日志写不进去时（例如拿不到 `@deepseek-ai/dsh-session`）静默降级为只有 stderr——不假装写了。
 - **只拦住有 `write`/`edit`/`apply_patch` 的回合。** 只跑 `bash` 的回合不算，哪怕那条命令其实写了文件。
 - **需要新会话或重启后才生效。** 插件本身在启动时装配。
+- **它会压过会话内的显式指示。** 用户在任务里写「只回一句『改好了』，不要写小节」，闸门照样拦，模型会判定「后来的用户消息覆盖」并补出三栏。这是它有效的原因，也是它和「用户明确要求简短」打架的原因——不想要就配 `enabled: false`。
+- **`link:` 安装拿不到会话日志写入能力。** 见下节。
+
+### 安装方式会影响留痕能力
+
+`dsh-turn-slot-gate` 用 `link:` 装进 profile 时（`dependencies` 写成 `link:/path/to/plugin`，`node_modules` 里是符号链接），`import('@deepseek-ai/dsh-session')` 与 `import('@deepseek-ai/dsh-llm')` 都会 `ERR_MODULE_NOT_FOUND`：Node 按 **realpath** 解析，插件真实位置在仓库里，那条祖先链上没有宿主的 `@deepseek-ai/*`。
+
+后果分两级：
+
+- **闸门本身照常工作**——`steer` 的降级路径是裸消息对象，拦回与提醒都不受影响。
+- **超限留痕只剩 stderr**，会话日志里查不到 `plugin:turn-slot-gate/non-compliant`。
+
+要拿到会话日志写入能力，把插件**物理拷贝**进 profile 的 `node_modules`（不要符号链接）。实测同一份代码在两种安装下：链接时两条 import 都失败，拷贝后 `dsh-session` 与 `dsh-llm` 都解析成功。
+
+这条限制不是本插件独有，任何 `link:` 安装的 profile 插件都拿不到上述两个宿主包。
 
 ## 测试
 

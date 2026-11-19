@@ -1,0 +1,10 @@
+# dsh-turn-slot-gate —— DSH bundle patch
+#
+# DSH 启动时按 bundle 层栈把各插件的 patch 叠加进配置树。这一层只插入
+# 一个 Host 侧插件（无 UI 半侧），它在回合收尾时检查交付说明的三栏槽位。
+#
+# 行名必须等于包名：client-modules / loader 侧都靠行名去找包。
+
+- insert:
+    - id: dsh-turn-slot-gate
+      name: dsh-turn-slot-gate

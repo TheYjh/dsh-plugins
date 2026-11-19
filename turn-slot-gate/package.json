@@ -1,0 +1,40 @@
+{
+  "name": "dsh-turn-slot-gate",
+  "version": "0.1.0",
+  "description": "回合收尾闸门：本回合改过文件，但交付说明缺「改动 / 已阅未改 / 判断无问题」三栏槽位时，把回合拦回来补一次",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "turn",
+    "gate",
+    "delivery"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24.9.0"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.1-rc.1 <5.0.0",
+    "@deepseek-ai/dsh-llm": ">=0.1.7-rc.1 <0.3.0-0"
+  },
+  "license": "MIT"
+}

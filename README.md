@@ -10,6 +10,7 @@
 | 插件 | 包名 | 一句话 |
 |---|---|---|
 | [`profile-doctor`](./profile-doctor/) | `dsh-profile-doctor` | 自动体检并修复 DSH profile 的 bundle 声明：删掉「声明了但没安装」的残留条目，让插件市场的更新不再被试启动校验回滚 |
+| [`turn-slot-gate`](./turn-slot-gate/) | `dsh-turn-slot-gate` | 回合收尾闸门：本回合改过文件，但交付说明缺「改动 / 已阅未改 / 判断无问题」三栏槽位时，把回合拦回来补一次 |
 | [`workbuddy-balancer`](./workbuddy-balancer/) | `dsh-workbuddy-balancer` | 给 dsh-connect-workbuddy 的账号池加上「积分临期优先、积分少优先」：读上游实时余额，算加权顺序，写进上游的 pool.orderAccountIds，不碰上游代码，升级不会丢 |
 <!-- plugins-table:end -->
 
